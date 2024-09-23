@@ -1,0 +1,97 @@
+services:
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    healthcheck:
+      test: ["CMD", "rabbitmqctl", "status"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  db_admin:
+    restart: "on-failure"
+    image: postgres:15.1-alpine
+    volumes:
+      - db_admin:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: admin_db
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: admin_pass
+    ports:
+      - "5433:5432"
+
+  db_frontend:
+    restart: "on-failure"
+    image: postgres:15.1-alpine
+    volumes:
+      - db_frontend:/var/lib/postgresql/data/
+    environment:
+      POSTGRES_DB: frontend_db
+      POSTGRES_USER: frontend_user
+      POSTGRES_PASSWORD: frontend_pass
+    ports:
+      - "5434:5432"
+
+  admin_api:
+    build: ./admin_api
+    command: gunicorn admin_api.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./admin_api:/app
+    ports:
+      - "8001:8000"
+    depends_on:
+      - db_admin
+      - rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+    
+  frontend_api:
+    build: ./frontend_api
+    command: gunicorn frontend_api.wsgi:application --bind 0.0.0.0:8000
+    volumes:
+      - ./frontend_api:/app
+    ports:
+      - "8002:8000"
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+
+  celery_frontend:
+    build: ./frontend_api
+    command: celery -A frontend_api worker --loglevel=info
+    volumes:
+      - ./frontend_api:/app
+    depends_on:
+      - frontend_api
+      - rabbitmq
+
+  frontend_consumer:
+    build: ./frontend_api
+    command: python manage.py run_consumer
+    volumes:
+      - ./frontend_api:/app
+    depends_on:
+      - frontend_api
+      - rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
+  
+volumes:
+  db_frontend:
+  db_admin:

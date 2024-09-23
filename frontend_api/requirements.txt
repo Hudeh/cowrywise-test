@@ -1,0 +1,9 @@
+Django
+djangorestframework 
+python-decouple
+django-cors-headers
+pika
+celery
+gunicorn
+psycopg2-binary
+django-filter
