@@ -2,31 +2,31 @@ import pika
 import json
 import time
 from decouple import config
-from .models import Book, User
+from .models import Book, User, BorrowedBook
 from django.db import transaction
 
 
 def callback(ch, method, properties, body):
     data = json.loads(body)
     action = data.get("action")
-    print(f"action {action}")
     if action == "borrowed":
         book_id = data.get("book_id")
         user_id = data.get("user_id")
-        handle_borrowed(book_id, user_id)
+        due_date = data.get("due_date")
+        handle_borrowed(book_id, user_id, due_date)
     elif action == "user_created":
         user_data = data.get("user_data")
         handle_user_created(user_data)
 
 
-def handle_borrowed(book_id, user_id):
+def handle_borrowed(book_id, user_id, due_date):
     try:
         user = User.objects.get(id=user_id)
         book = Book.objects.get(id=book_id)
-        book.is_available = False
-        book.user = user
-        book.save()
-        print(f"Book ID {book_id} marked as borrowed by User ID {user_id}.")
+        borrowed_book = BorrowedBook.objects.create(user=user, book=book, due_date=due_date)
+        print(
+            f"Book ID {book_id} marked as borrowed by User ID {user_id}. borrowed_book {borrowed_book.id}"
+        )
     except Book.DoesNotExist:
         print(f"Book with ID {book_id} does not exist.")
 
