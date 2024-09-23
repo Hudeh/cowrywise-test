@@ -38,8 +38,10 @@ services:
       - "5434:5432"
 
   admin_api:
-    build: ./admin_api
-    command: gunicorn admin_api.wsgi:application --bind 0.0.0.0:8000
+    build:
+      context: ./admin_api
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./admin_api:/app
     ports:
@@ -52,14 +54,30 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST}
       RABBITMQ_HOST: ${RABBITMQ_HOST}
+  
+  admin_consumer:
+    build: ./admin_api
+    command: python manage.py run_consumer
+    volumes:
+      - ./admin_api:/app
+    depends_on:
+      - admin_api
+      - rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+      RABBITMQ_VHOST: ${RABBITMQ_VHOST}
+      RABBITMQ_HOST: ${RABBITMQ_HOST}
     
   frontend_api:
-    build: ./frontend_api
-    command: gunicorn frontend_api.wsgi:application --bind 0.0.0.0:8000
+    build:
+      context: ./frontend_api
+      dockerfile: Dockerfile
+    command: python manage.py runserver 0.0.0.0:8001
     volumes:
       - ./frontend_api:/app
     ports:
-      - "8002:8000"
+      - "8002:8001"
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -68,15 +86,6 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST}
       RABBITMQ_HOST: ${RABBITMQ_HOST}
-
-  celery_frontend:
-    build: ./frontend_api
-    command: celery -A frontend_api worker --loglevel=info
-    volumes:
-      - ./frontend_api:/app
-    depends_on:
-      - frontend_api
-      - rabbitmq
 
   frontend_consumer:
     build: ./frontend_api
@@ -91,7 +100,9 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
       RABBITMQ_VHOST: ${RABBITMQ_VHOST}
       RABBITMQ_HOST: ${RABBITMQ_HOST}
+ 
   
 volumes:
   db_frontend:
   db_admin:
+   

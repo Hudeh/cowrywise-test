@@ -61,17 +61,15 @@ def start_consuming():
                     credentials=pika.PlainCredentials(
                         config("RABBITMQ_DEFAULT_USER"),
                         config("RABBITMQ_DEFAULT_PASS"),
-                    ),
-                    heartbeat=600,
-                    blocked_connection_timeout=300,
+                    )
                 )
             )
             channel = connection.channel()
-            channel.queue_declare(queue="book_updates", durable=True)
+            channel.queue_declare(queue="library_queue", durable=True)
             channel.basic_consume(
-                queue="book_updates", on_message_callback=callback, auto_ack=True
+                queue="library_queue", on_message_callback=callback, auto_ack=True
             )
-            logger.info("Started consuming from 'book_updates' queue.")
+            logger.info("Started consuming from 'library_queue' queue.")
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as e:
             logger.error(

@@ -3,6 +3,7 @@ djangorestframework
 python-decouple
 django-cors-headers
 pika
+celery
 gunicorn
 psycopg2-binary
-celery
+django-filter

@@ -1,17 +1,15 @@
 import pika
 import json
 import time
-from models import Book, User
-import logging
+from decouple import config
+from .models import Book, User
 from django.db import transaction
-
-logger = logging.getLogger(__name__)
 
 
 def callback(ch, method, properties, body):
     data = json.loads(body)
     action = data.get("action")
-
+    print(f"action {action}")
     if action == "borrowed":
         book_id = data.get("book_id")
         user_id = data.get("user_id")
@@ -28,23 +26,28 @@ def handle_borrowed(book_id, user_id):
         book.is_available = False
         book.user = user
         book.save()
-        logger.info(f"Book ID {book_id} marked as borrowed by User ID {user_id}.")
+        print(f"Book ID {book_id} marked as borrowed by User ID {user_id}.")
     except Book.DoesNotExist:
-        logger.warning(f"Book with ID {book_id} does not exist.")
+        print(f"Book with ID {book_id} does not exist.")
 
 
 def handle_user_created(user_data):
     try:
         with transaction.atomic():
-            User.objects.create(
+            user, created = User.objects.update_or_create(
                 id=user_data.get("id"),
-                first_name=user_data.get("first_name"),
-                last_name=user_data.get("last_name"),
-                email=user_data.get("email"),
+                defaults={
+                    "first_name": user_data.get("first_name"),
+                    "last_name": user_data.get("last_name"),
+                    "email": user_data.get("email"),
+                },
             )
-        logger.info(f"User created: {user_data}")
+            if created:
+                print(f"New user created in admin_api: {user_data}")
+            else:
+                print(f"User updated in admin_api: {user_data}")
     except Exception as e:
-        logger.error(f"Failed to create user from message: {e}")
+        print(f"Failed to create or update user from message: {e}")
 
 
 def start_consuming():
@@ -57,23 +60,21 @@ def start_consuming():
                     credentials=pika.PlainCredentials(
                         config("RABBITMQ_DEFAULT_USER"),
                         config("RABBITMQ_DEFAULT_PASS"),
-                    ),
-                    heartbeat=600,
-                    blocked_connection_timeout=300,
+                    )
                 )
             )
             channel = connection.channel()
-            channel.queue_declare(queue="user_updates", durable=True)
+            channel.queue_declare(queue="library_queue", durable=True)
             channel.basic_consume(
-                queue="user_updates", on_message_callback=callback, auto_ack=True
+                queue="library_queue", on_message_callback=callback, auto_ack=True
             )
-            logger.info("Started consuming from 'user_updates' queue.")
+            print("Started consuming from 'frontend_api' queue.")
             channel.start_consuming()
         except pika.exceptions.AMQPConnectionError as e:
-            logger.error(
+            print(
                 f"Connection to RabbitMQ failed: {e}. Retrying in 5 seconds..."
             )
             time.sleep(5)
         except Exception as e:
-            logger.error(f"Unexpected error: {e}. Retrying in 5 seconds...")
+            print(f"Unexpected error: {e}. Retrying in 5 seconds...")
             time.sleep(5)

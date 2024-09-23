@@ -31,16 +31,14 @@ def publish_book_created(sender, instance, created, **kwargs):
                     credentials=pika.PlainCredentials(
                         config("RABBITMQ_DEFAULT_USER"),
                         config("RABBITMQ_DEFAULT_PASS"),
-                    ),
-                    heartbeat=600,
-                    blocked_connection_timeout=300,
+                    )
                 )
             )
             channel = connection.channel()
-            channel.queue_declare(queue="book_updates", durable=True)
+            channel.queue_declare(queue="library_queue", durable=True)
             channel.basic_publish(
                 exchange="",
-                routing_key="book_updates",
+                routing_key="library_queue",
                 body=json.dumps(message),
                 properties=pika.BasicProperties(
                     delivery_mode=2,

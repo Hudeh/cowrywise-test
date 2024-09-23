@@ -1,3 +1,5 @@
+import pika
+import json
 from django.db.models import Prefetch
 from rest_framework import viewsets, status, filters, mixins
 from rest_framework.response import Response
@@ -37,13 +39,11 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
                     credentials=pika.PlainCredentials(
                         config("RABBITMQ_DEFAULT_USER"),
                         config("RABBITMQ_DEFAULT_PASS"),
-                    ),
-                    heartbeat=600,
-                    blocked_connection_timeout=300,
+                    )
                 )
             )
             channel = connection.channel()
-            channel.queue_declare(queue="book_updates")
+            channel.queue_declare(queue="library_queue", durable=True)
 
             # Create the message payload
             message = {
@@ -55,7 +55,7 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
             # Send the message to the queue
             channel.basic_publish(
                 exchange="",
-                routing_key="book_updates",
+                routing_key="library_queue",
                 body=json.dumps(message),
             )
             connection.close()
@@ -84,8 +84,12 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
         borrowed_book = BorrowedBook.objects.create(
             user=user, book=book, due_date=due_date
         )
-        book.is_available = False
-        book.save()
+        obj, _ = Book.objects.update_or_create(
+            id=book.id,
+            defaults={
+                "is_available":False
+            }
+        )
         self.notify_admin(book.id, user.id)
         return Response(
             {"message": "Book borrowed successfully"}, status=status.HTTP_200_OK
@@ -124,9 +128,7 @@ class BorrowedBookViewSet(
 
 
 class UnavailableBooksViewSet(viewsets.ReadOnlyModelViewSet):
-    queryset = Book.objects.filter(is_available=False).prefetch_related(
-        Prefetch("borrowed_books", queryset=BorrowedBook.objects.select_related("user"))
-    )
+    queryset = Book.objects.filter(is_available=False)
     serializer_class = UnavailableBookSerializer
     http_method_names = ["get"]
 

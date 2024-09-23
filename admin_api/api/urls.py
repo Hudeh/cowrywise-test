@@ -11,12 +11,11 @@ router = DefaultRouter()
 router.register(r"users", UserViewSet)
 router.register(r"books", BookViewSet)
 router.register(r"borrowed-books", BorrowedBookViewSet)
+router.register(
+    r"unavailable-books", UnavailableBooksViewSet, basename="unavailablebook"
+)
+
 
 urlpatterns = [
     path("", include(router.urls)),
-    path("unavailable-books/", UnavailableBooksViewSet.as_view({"get": "list"})),
-    path(
-        "users-borrowed-books/",
-        BorrowedBookViewSet.as_view({"get": "list_users_borrowed_books"}),
-    ),
 ]

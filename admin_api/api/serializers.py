@@ -22,6 +22,11 @@ class BorrowedBookSerializer(serializers.ModelSerializer):
         model = BorrowedBook
         fields = ["id", "user", "book", "borrowed_date", "due_date"]
 
+    def validate_due_date(self, value):
+        if value < timezone.now().date():
+            raise serializers.ValidationError("Due date cannot be in the past.")
+        return value
+
 
 class UnavailableBookSerializer(serializers.ModelSerializer):
     due_date = serializers.SerializerMethodField()
