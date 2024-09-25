@@ -4,7 +4,8 @@ import time
 from decouple import config
 from .models import Book, User, BorrowedBook
 from django.db import transaction
-
+from django.utils import timezone
+from datetime import timedelta
 
 def callback(ch, method, properties, body):
     data = json.loads(body)
@@ -12,20 +13,24 @@ def callback(ch, method, properties, body):
     if action == "borrowed":
         book_id = data.get("book_id")
         user_id = data.get("user_id")
-        due_date = data.get("due_date")
-        handle_borrowed(book_id, user_id, due_date)
+        days = data.get("days")
+        handle_borrowed(book_id, user_id, days)
     elif action == "user_created":
         user_data = data.get("user_data")
         handle_user_created(user_data)
 
 
-def handle_borrowed(book_id, user_id, due_date):
+def handle_borrowed(book_id, user_id, days):
     try:
         user = User.objects.get(id=user_id)
         book = Book.objects.get(id=book_id)
+        due_date = timezone.now().date() + timedelta(days=int(days))
         borrowed_book = BorrowedBook.objects.create(user=user, book=book, due_date=due_date)
+        obj, _ = Book.objects.update_or_create(
+            id=book_id, defaults={"is_available": False}
+        )
         print(
-            f"Book ID {book_id} marked as borrowed by User ID {user_id}. borrowed_book {borrowed_book.id}"
+            f"Book ID {book_id} marked as borrowed by User ID {user_id}. borrowed_book {borrowed_book.id} {due_date}"
         )
     except Book.DoesNotExist:
         print(f"Book with ID {book_id} does not exist.")

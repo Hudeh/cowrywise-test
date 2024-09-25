@@ -29,7 +29,7 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
     filterset_fields = ["publisher", "category"]
     search_fields = ["title"]
 
-    def notify_admin(self, book_id, user_id, due_date):
+    def notify_admin(self, book_id, user_id, days):
         """Send a notification to admin_api via RabbitMQ when a book is borrowed"""
         try:
             connection = pika.BlockingConnection(
@@ -50,7 +50,7 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
                 "action": "borrowed",
                 "book_id": book_id,
                 "user_id": user_id,
-                "due_date": due_date,
+                "days": days,
             }
 
             # Send the message to the queue
@@ -88,7 +88,7 @@ class BookViewSet(viewsets.ReadOnlyModelViewSet):
         obj, _ = Book.objects.update_or_create(
             id=book.id, defaults={"is_available": False}
         )
-        self.notify_admin(book.id, user.id, due_date)
+        self.notify_admin(book.id, user.id, days)
         return Response(
             {"message": "Book borrowed successfully"}, status=status.HTTP_200_OK
         )

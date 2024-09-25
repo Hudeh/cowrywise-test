@@ -43,7 +43,6 @@ class BorrowedBookViewSet(
                 )
             )
         )
-        print("users_with_borrowed_books", users_with_borrowed_books)
         data = []
         for user in users_with_borrowed_books:
             borrowed_books = BookSerializer(
